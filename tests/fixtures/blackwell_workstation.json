@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "backend": "nvml",
+  "driver_version": "fixture-driver",
+  "nvml_version": "fixture-nvml",
+  "captured_at": "2026-09-02T00:00:00Z",
+  "devices": [
+    {
+      "device": {
+        "id": "GPU-fixture-blackwell",
+        "parent_id": null,
+        "display_index": 0,
+        "pci_bus_id": "0000:01:00.0",
+        "vendor": "NVIDIA",
+        "name": "Sanitized Blackwell Workstation GPU",
+        "architecture": "Blackwell",
+        "entity_kind": "physical_gpu",
+        "compute_units": null,
+        "memory_total_bytes": 102629703680,
+        "mig_enabled": null,
+        "capabilities": [
+          "gpu_utilization",
+          "memory_utilization",
+          "power",
+          "temperature",
+          "vram"
+        ]
+      },
+      "sample": {
+        "thermals": {
+          "temperature_celsius": {
+            "value": 33.0,
+            "source": "nvml",
+            "scope": "device",
+            "sampled_at": "2026-09-02T00:00:00Z",
+            "quality": "direct"
+          },
+          "slowdown_threshold_celsius": null,
+          "shutdown_threshold_celsius": null,
+          "fan_percent": null
+        },
+        "power": {
+          "power_watts": {
+            "value": 6.25,
+            "source": "nvml",
+            "scope": "device",
+            "sampled_at": "2026-09-02T00:00:00Z",
+            "quality": "direct"
+          },
+          "power_limit_watts": {
+            "value": 300.0,
+            "source": "nvml",
+            "scope": "device",
+            "sampled_at": "2026-09-02T00:00:00Z",
+            "quality": "direct"
+          },
+          "energy_millijoules": null
+        },
+        "clocks": {
+          "graphics_clock_mhz": null,
+          "sm_clock_mhz": null,
+          "memory_clock_mhz": null,
+          "video_clock_mhz": null,
+          "performance_state": "P8",
+          "throttle_reasons": ["idle"]
+        },
+        "utilization": {
+          "gpu_ratio": {
+            "value": 0.0,
+            "source": "nvml",
+            "scope": "device",
+            "sampled_at": "2026-09-02T00:00:00Z",
+            "quality": "direct"
+          },
+          "memory_controller_ratio": {
+            "value": 0.0,
+            "source": "nvml",
+            "scope": "device",
+            "sampled_at": "2026-09-02T00:00:00Z",
+            "quality": "direct"
+          },
+          "encoder_ratio": null,
+          "decoder_ratio": null,
+          "sm_active_ratio": null,
+          "sm_occupancy_ratio": null,
+          "tensor_active_ratio": null,
+          "dram_active_ratio": null
+        },
+        "memory": {
+          "used_bytes": null,
+          "total_bytes": null,
+          "free_bytes": null,
+          "reserved_bytes": null
+        },
+        "links": {
+          "pcie_tx_bytes_per_second": null,
+          "pcie_rx_bytes_per_second": null,
+          "pcie_generation": 1,
+          "pcie_width": 16,
+          "nvlink_tx_bytes_per_second": null,
+          "nvlink_rx_bytes_per_second": null
+        },
+        "health": {
+          "corrected_ecc_volatile": null,
+          "uncorrected_ecc_volatile": null,
+          "retired_pages_corrected": null,
+          "retired_pages_uncorrected": null,
+          "pcie_replay_counter": null,
+          "observations": ["no observed faults in accessible counters"]
+        }
+      },
+      "processes": [],
+      "stale": false,
+      "error": null
+    }
+  ],
+  "topology": [],
+  "warnings": []
+}
+
