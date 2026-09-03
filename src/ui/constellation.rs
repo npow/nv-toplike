@@ -9,8 +9,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use crate::model::DeviceSnapshot;
 use crate::ui::colors::*;
 use crate::ui::{
-    App, animated_link, fmt_bytes, fmt_mhz, fmt_percent, fmt_temp, fmt_watts,
-    panel, short_name,
+    App, animated_link, fmt_bytes, fmt_mhz, fmt_percent, fmt_temp, fmt_watts, panel, short_name,
 };
 
 const GLYPHS: [char; 5] = ['·', '∘', '○', '◉', '●'];
@@ -23,18 +22,13 @@ struct SmGridParams {
     temperature: f64,
 }
 
-pub fn render_constellation(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    app: &App,
-    device: &DeviceSnapshot,
-) {
+pub fn render_constellation(frame: &mut Frame<'_>, area: Rect, app: &App, device: &DeviceSnapshot) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),         // Top Header HUD
-            Constraint::Percentage(58),    // Upper: 2D SM Constellation & Pipeline Telemetry
-            Constraint::Percentage(42),    // Lower: Memory Reservoir & PCIe DMA Highway
+            Constraint::Length(3),      // Top Header HUD
+            Constraint::Percentage(58), // Upper: 2D SM Constellation & Pipeline Telemetry
+            Constraint::Percentage(42), // Lower: Memory Reservoir & PCIe DMA Highway
         ])
         .split(area);
 
@@ -52,7 +46,15 @@ pub fn render_constellation(
     let temp_hue = temp_to_hue(temperature);
 
     // 1. Top Header HUD
-    render_header_hud(frame, main_layout[0], device, reported_sm_count, display_units, activity, tensor);
+    render_header_hud(
+        frame,
+        main_layout[0],
+        device,
+        reported_sm_count,
+        display_units,
+        activity,
+        tensor,
+    );
 
     // Determine sidebar width based on total terminal width (38..48 cols)
     let right_width = if main_layout[1].width >= 80 {
@@ -65,10 +67,7 @@ pub fn render_constellation(
     let upper_chunks = if right_width > 0 {
         Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(36),
-                Constraint::Length(right_width),
-            ])
+            .constraints([Constraint::Min(36), Constraint::Length(right_width)])
             .split(main_layout[1])
     } else {
         Layout::default()
@@ -84,25 +83,24 @@ pub fn render_constellation(
         temp_hue,
         temperature,
     };
-    render_sm_grid(
-        frame,
-        upper_chunks[0],
-        app,
-        &params,
-    );
+    render_sm_grid(frame, upper_chunks[0], app, &params);
 
     if upper_chunks[1].width > 15 {
-        render_pipeline_telemetry_deck(frame, upper_chunks[1], device, activity, tensor, temperature);
+        render_pipeline_telemetry_deck(
+            frame,
+            upper_chunks[1],
+            device,
+            activity,
+            tensor,
+            temperature,
+        );
     }
 
     // 3. Lower Section: VRAM & L2 Foundry (Left) + PCIe DMA Highway & Processes (Right)
     let lower_chunks = if right_width > 0 {
         Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(36),
-                Constraint::Length(right_width),
-            ])
+            .constraints([Constraint::Min(36), Constraint::Length(right_width)])
             .split(main_layout[2])
     } else {
         Layout::default()
@@ -135,10 +133,16 @@ fn render_header_hud(
     let header_line = Line::from(vec![
         Span::styled(
             format!(" {} ", short_name(&device.device.name, 32)),
-            Style::default().fg(Color::Black).bg(CYAN).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Black)
+                .bg(CYAN)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
-        Span::styled(sm_label, Style::default().fg(GOLD).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            sm_label,
+            Style::default().fg(GOLD).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" · Arch: ", Style::default().fg(MUTED)),
         Span::styled(
             device.device.architecture.as_deref().unwrap_or("NVIDIA"),
@@ -147,7 +151,9 @@ fn render_header_hud(
         Span::styled(" · GPU Load: ", Style::default().fg(MUTED)),
         Span::styled(
             fmt_percent(device.gpu_ratio()),
-            Style::default().fg(util_color(device.gpu_ratio().unwrap_or(0.0))).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(util_color(device.gpu_ratio().unwrap_or(0.0)))
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(" · Baseline Activity: ", Style::default().fg(MUTED)),
         Span::styled(
@@ -156,33 +162,40 @@ fn render_header_hud(
         ),
         Span::styled(" · Tensor Pipe: ", Style::default().fg(MUTED)),
         Span::styled(
-            if tensor > 0.0 { format!("{:.0}% ◈", tensor * 100.0) } else { "Idle".to_owned() },
-            Style::default().fg(if tensor > 0.0 { PINK } else { MUTED }).add_modifier(Modifier::BOLD),
+            if tensor > 0.0 {
+                format!("{:.0}% ◈", tensor * 100.0)
+            } else {
+                "Idle".to_owned()
+            },
+            Style::default()
+                .fg(if tensor > 0.0 { PINK } else { MUTED })
+                .add_modifier(Modifier::BOLD),
         ),
     ]);
 
     frame.render_widget(
-        Paragraph::new(header_line)
-            .block(panel(" SM Constellation · Aggregate Compute Galaxy ", CYAN)),
+        Paragraph::new(header_line).block(panel(" SM Constellation · Compute Array ", CYAN)),
         area,
     );
 }
 
-fn render_sm_grid(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    app: &App,
-    params: &SmGridParams,
-) {
+fn render_sm_grid(frame: &mut Frame<'_>, area: Rect, app: &App, params: &SmGridParams) {
     let inner_width = area.width.saturating_sub(4) as usize;
     let inner_height = area.height.saturating_sub(2) as usize;
 
-    let cluster_size = if params.display_units > 48 { 4 } else if params.display_units > 16 { 2 } else { 1 };
+    let cluster_size = if params.display_units > 48 {
+        4
+    } else if params.display_units > 16 {
+        2
+    } else {
+        1
+    };
     let cluster_char_len = 2 + cluster_size * 2 + 2; // e.g. "[ · · · · ] " = 12
 
     let total_clusters = params.display_units.div_ceil(cluster_size);
     let prefix_len = 7; // "SM000│ "
-    let max_clusters_per_row = (inner_width.saturating_sub(prefix_len + 1) / cluster_char_len).max(1);
+    let max_clusters_per_row =
+        (inner_width.saturating_sub(prefix_len + 1) / cluster_char_len).max(1);
 
     // Expand clusters per row to use the available width fully
     let clusters_per_row = max_clusters_per_row.min(total_clusters).max(1);
@@ -218,7 +231,8 @@ fn render_sm_grid(
                 let twinkle = (phase1 * std::f64::consts::TAU).sin() * 0.18
                     + (phase2 * std::f64::consts::TAU).cos() * 0.12;
 
-                let sparkle_trigger = (app.frame + sm_idx as u64 * 17).is_multiple_of(61) && params.activity > 0.08;
+                let sparkle_trigger =
+                    (app.frame + sm_idx as u64 * 17).is_multiple_of(61) && params.activity > 0.08;
 
                 let level = if sparkle_trigger {
                     4
@@ -234,8 +248,15 @@ fn render_sm_grid(
                     GLYPHS[level]
                 };
 
-                let hue = (params.temp_hue + (sm_idx as f64 * 3.2) + (app.frame as f64 * 1.5)) % 360.0;
-                let sat = if sparkle_trigger { 0.35 } else if params.activity > 0.05 { 0.95 } else { 0.75 };
+                let hue =
+                    (params.temp_hue + (sm_idx as f64 * 3.2) + (app.frame as f64 * 1.5)) % 360.0;
+                let sat = if sparkle_trigger {
+                    0.35
+                } else if params.activity > 0.05 {
+                    0.95
+                } else {
+                    0.75
+                };
                 let val = if sparkle_trigger {
                     1.0
                 } else {
@@ -252,9 +273,13 @@ fn render_sm_grid(
 
                 spans.push(Span::styled(
                     format!("{ch} "),
-                    Style::default().fg(color).add_modifier(
-                        if sparkle_trigger || level >= 3 { Modifier::BOLD } else { Modifier::empty() },
-                    ),
+                    Style::default()
+                        .fg(color)
+                        .add_modifier(if sparkle_trigger || level >= 3 {
+                            Modifier::BOLD
+                        } else {
+                            Modifier::empty()
+                        }),
                 ));
             }
 
@@ -268,7 +293,10 @@ fn render_sm_grid(
     frame.render_widget(
         Paragraph::new(lines).block(
             Block::default()
-                .title(format!(" 2D SM Matrix · {} Units ({clusters_per_row} Clusters/Row) ", params.display_units))
+                .title(format!(
+                    " 2D SM Matrix · {} Units ({clusters_per_row} Clusters/Row) ",
+                    params.display_units
+                ))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(border_color)),
@@ -287,37 +315,81 @@ fn render_pipeline_telemetry_deck(
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
     // 1. Pipeline Gauges & Load
     let sm_ratio = device.gpu_ratio().unwrap_or(0.0);
     let mem_act = device.memory_activity_ratio().unwrap_or(0.0);
-    let enc = device.sample.utilization.encoder_ratio.as_ref().map(|m| m.value).unwrap_or(0.0);
-    let dec = device.sample.utilization.decoder_ratio.as_ref().map(|m| m.value).unwrap_or(0.0);
+    let enc = device
+        .sample
+        .utilization
+        .encoder_ratio
+        .as_ref()
+        .map(|m| m.value)
+        .unwrap_or(0.0);
+    let dec = device
+        .sample
+        .utilization
+        .decoder_ratio
+        .as_ref()
+        .map(|m| m.value)
+        .unwrap_or(0.0);
 
     let pipe_lines = vec![
         Line::from(vec![
             Span::styled("SM Compute  ", Style::default().fg(CYAN)),
-            Span::styled(format!("{:>4.0}% ", sm_ratio * 100.0), Style::default().fg(util_color(sm_ratio)).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("[Baseline {:>3.0}%]", activity * 100.0), Style::default().fg(MUTED)),
+            Span::styled(
+                format!("{:>4.0}% ", sm_ratio * 100.0),
+                Style::default()
+                    .fg(util_color(sm_ratio))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("[Baseline {:>3.0}%]", activity * 100.0),
+                Style::default().fg(MUTED),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Tensor Core ", Style::default().fg(PINK)),
-            Span::styled(format!("{:>4.0}% ", tensor * 100.0), Style::default().fg(if tensor > 0.0 { PINK } else { MUTED }).add_modifier(Modifier::BOLD)),
-            Span::styled(if tensor > 0.0 { "[Active ◈]" } else { "[Idle]" }, Style::default().fg(if tensor > 0.0 { GOLD } else { MUTED })),
+            Span::styled(
+                format!("{:>4.0}% ", tensor * 100.0),
+                Style::default()
+                    .fg(if tensor > 0.0 { PINK } else { MUTED })
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if tensor > 0.0 {
+                    "[Active ◈]"
+                } else {
+                    "[Idle]"
+                },
+                Style::default().fg(if tensor > 0.0 { GOLD } else { MUTED }),
+            ),
         ]),
         Line::from(vec![
             Span::styled("DRAM Ctrl   ", Style::default().fg(AMBER)),
-            Span::styled(format!("{:>4.0}% ", mem_act * 100.0), Style::default().fg(util_color(mem_act)).add_modifier(Modifier::BOLD)),
-            Span::styled(if mem_act > 0.1 { "[Active ◆]" } else { "[Idle]" }, Style::default().fg(AMBER)),
+            Span::styled(
+                format!("{:>4.0}% ", mem_act * 100.0),
+                Style::default()
+                    .fg(util_color(mem_act))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if mem_act > 0.1 {
+                    "[Active ◆]"
+                } else {
+                    "[Idle]"
+                },
+                Style::default().fg(AMBER),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Video Engine", Style::default().fg(WHITE)),
-            Span::styled(format!(" ENC: {:>3.0}% · DEC: {:>3.0}%", enc * 100.0, dec * 100.0), Style::default().fg(MUTED)),
+            Span::styled(
+                format!(" ENC: {:>3.0}% · DEC: {:>3.0}%", enc * 100.0, dec * 100.0),
+                Style::default().fg(MUTED),
+            ),
         ]),
     ];
 
@@ -337,21 +409,38 @@ fn render_pipeline_telemetry_deck(
     let clocks_lines = vec![
         Line::from(vec![
             Span::styled("Clocks  ", Style::default().fg(MUTED)),
-            Span::styled(fmt_mhz(sm_clk), Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                fmt_mhz(sm_clk),
+                Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" · MEM "),
             Span::styled(fmt_mhz(mem_clk), Style::default().fg(PINK)),
             Span::raw(" · "),
-            Span::styled(sample.clocks.performance_state.as_deref().unwrap_or("P?"), Style::default().fg(GOLD)),
+            Span::styled(
+                sample.clocks.performance_state.as_deref().unwrap_or("P?"),
+                Style::default().fg(GOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Power   ", Style::default().fg(MUTED)),
-            Span::styled(format!("{} / {}", fmt_watts(power), fmt_watts(limit)), Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("{} / {}", fmt_watts(power), fmt_watts(limit)),
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Thermal ", Style::default().fg(MUTED)),
-            Span::styled(fmt_temp(Some(temperature)), Style::default().fg(heat_color(temperature)).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                fmt_temp(Some(temperature)),
+                Style::default()
+                    .fg(heat_color(temperature))
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" · Fan "),
-            Span::styled(fmt_percent(fan.map(|f| f / 100.0)), Style::default().fg(CYAN)),
+            Span::styled(
+                fmt_percent(fan.map(|f| f / 100.0)),
+                Style::default().fg(CYAN),
+            ),
         ]),
     ];
 
@@ -387,7 +476,9 @@ fn render_memory_foundry_card(
         let mut row_str = String::with_capacity(inner_width);
         for col in 0..inner_width {
             if col < filled_total {
-                let pulse = (app.frame.wrapping_add(col as u64 * 5 + row as u64 * 11)).is_multiple_of(13) && mem_act > 0.05;
+                let pulse = (app.frame.wrapping_add(col as u64 * 5 + row as u64 * 11))
+                    .is_multiple_of(13)
+                    && mem_act > 0.05;
                 if pulse {
                     row_str.push('◆');
                 } else {
@@ -397,14 +488,20 @@ fn render_memory_foundry_card(
                 row_str.push('░');
             }
         }
-        lines.push(Line::from(Span::styled(row_str, Style::default().fg(AMBER))));
+        lines.push(Line::from(Span::styled(
+            row_str,
+            Style::default().fg(AMBER),
+        )));
     }
 
     let used_fmt = fmt_bytes(device.sample.memory.used_bytes.as_ref().map(|m| m.value));
     let tot_fmt = fmt_bytes(device.sample.memory.total_bytes.as_ref().map(|m| m.value));
     let free_fmt = fmt_bytes(device.sample.memory.free_bytes.as_ref().map(|m| m.value));
     lines.push(Line::from(vec![
-        Span::styled(format!("VRAM: {used_fmt} / {tot_fmt} ({:.1}%)", fill_ratio * 100.0), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            format!("VRAM: {used_fmt} / {tot_fmt} ({:.1}%)", fill_ratio * 100.0),
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" · Free: "),
         Span::styled(free_fmt, Style::default().fg(GREEN)),
     ]));
@@ -421,13 +518,19 @@ fn render_memory_foundry_card(
             let active = mem_act > 0.05 && phase > 0.3;
             let ch = if active { '◆' } else { '◇' };
             let col = if active { AMBER } else { DARK_GRAY };
-            l2_spans.push(Span::styled(format!("[L2_{i:02}:{ch}] "), Style::default().fg(col)));
+            l2_spans.push(Span::styled(
+                format!("[L2_{i:02}:{ch}] "),
+                Style::default().fg(col),
+            ));
         }
         lines.push(Line::from(l2_spans));
     }
 
     frame.render_widget(
-        Paragraph::new(lines).block(panel(" Memory Foundry · VRAM Reservoir & L2 Crossbar ", AMBER)),
+        Paragraph::new(lines).block(panel(
+            " Memory Foundry · VRAM Reservoir & L2 Crossbar ",
+            AMBER,
+        )),
         area,
     );
 }
@@ -439,25 +542,60 @@ fn render_pcie_processes_card(
     device: &DeviceSnapshot,
 ) {
     let sample = &device.sample;
-    let pcie_tx = sample.links.pcie_tx_bytes_per_second.as_ref().map(|m| m.value);
-    let pcie_rx = sample.links.pcie_rx_bytes_per_second.as_ref().map(|m| m.value);
+    let pcie_tx = sample
+        .links
+        .pcie_tx_bytes_per_second
+        .as_ref()
+        .map(|m| m.value);
+    let pcie_rx = sample
+        .links
+        .pcie_rx_bytes_per_second
+        .as_ref()
+        .map(|m| m.value);
     let inner_height = area.height.saturating_sub(2) as usize;
 
     let mut lines = Vec::new();
 
     // 1. PCIe Interconnect Links
-    lines.push(Line::from(animated_link("Host TX (D2H)", pcie_tx, app.frame, true)));
-    lines.push(Line::from(animated_link("Host RX (H2D)", pcie_rx, app.frame.wrapping_add(7), false)));
+    lines.push(Line::from(animated_link(
+        "Host TX (D2H)",
+        pcie_tx,
+        app.frame,
+        true,
+    )));
+    lines.push(Line::from(animated_link(
+        "Host RX (H2D)",
+        pcie_rx,
+        app.frame.wrapping_add(7),
+        false,
+    )));
 
     // 2. PCIe Link Speed & Replays
-    let gen_str = sample.links.pcie_generation.map_or_else(|| "?".to_owned(), |v| v.to_string());
-    let width_str = sample.links.pcie_width.map_or_else(|| "?".to_owned(), |v| v.to_string());
-    let replays = sample.health.pcie_replay_counter.as_ref().map(|m| m.value).unwrap_or(0);
+    let gen_str = sample
+        .links
+        .pcie_generation
+        .map_or_else(|| "?".to_owned(), |v| v.to_string());
+    let width_str = sample
+        .links
+        .pcie_width
+        .map_or_else(|| "?".to_owned(), |v| v.to_string());
+    let replays = sample
+        .health
+        .pcie_replay_counter
+        .as_ref()
+        .map(|m| m.value)
+        .unwrap_or(0);
     lines.push(Line::from(vec![
         Span::styled("Bus Link: ", Style::default().fg(MUTED)),
-        Span::styled(format!("PCIe Gen{gen_str} x{width_str}"), Style::default().fg(GREEN)),
+        Span::styled(
+            format!("PCIe Gen{gen_str} x{width_str}"),
+            Style::default().fg(GREEN),
+        ),
         Span::raw(" · Replays: "),
-        Span::styled(format!("{replays}"), Style::default().fg(if replays > 0 { RED } else { GREEN })),
+        Span::styled(
+            format!("{replays}"),
+            Style::default().fg(if replays > 0 { RED } else { GREEN }),
+        ),
     ]));
 
     // 3. Active Processes Table or Reliability Diagnostics
@@ -468,29 +606,59 @@ fn render_pcie_processes_card(
             Span::styled("None active (Idle)", Style::default().fg(CYAN)),
         ]));
         // Add reliability status lines to fill the space
-        let ecc_corr = sample.health.corrected_ecc_volatile.as_ref().map(|m| m.value).unwrap_or(0);
-        let ecc_uncorr = sample.health.uncorrected_ecc_volatile.as_ref().map(|m| m.value).unwrap_or(0);
+        let ecc_corr = sample
+            .health
+            .corrected_ecc_volatile
+            .as_ref()
+            .map(|m| m.value)
+            .unwrap_or(0);
+        let ecc_uncorr = sample
+            .health
+            .uncorrected_ecc_volatile
+            .as_ref()
+            .map(|m| m.value)
+            .unwrap_or(0);
         lines.push(Line::from(vec![
             Span::styled("ECC Status: ", Style::default().fg(MUTED)),
             Span::styled(format!("{ecc_corr} corrected"), Style::default().fg(GREEN)),
             Span::raw(" · "),
-            Span::styled(format!("{ecc_uncorr} uncorrected"), Style::default().fg(if ecc_uncorr > 0 { RED } else { GREEN })),
+            Span::styled(
+                format!("{ecc_uncorr} uncorrected"),
+                Style::default().fg(if ecc_uncorr > 0 { RED } else { GREEN }),
+            ),
         ]));
         lines.push(Line::from(vec![
             Span::styled("Throttle State: ", Style::default().fg(MUTED)),
             Span::styled(
-                if sample.clocks.throttle_reasons.is_empty() { "Unconstrained (Nominal)" } else { "Active" },
-                Style::default().fg(if sample.clocks.throttle_reasons.is_empty() { GREEN } else { AMBER }),
+                if sample.clocks.throttle_reasons.is_empty() {
+                    "Unconstrained (Nominal)"
+                } else {
+                    "Active"
+                },
+                Style::default().fg(if sample.clocks.throttle_reasons.is_empty() {
+                    GREEN
+                } else {
+                    AMBER
+                }),
             ),
         ]));
     } else {
-        lines.push(Line::from(Span::styled("Active Compute Processes:", Style::default().fg(CYAN).add_modifier(Modifier::BOLD))));
+        lines.push(Line::from(Span::styled(
+            "Active Compute Processes:",
+            Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+        )));
         for proc in device.processes.iter().take(max_procs) {
             lines.push(Line::from(vec![
                 Span::styled(format!("  {:>6} ", proc.pid), Style::default().fg(GOLD)),
-                Span::styled(short_name(proc.command.as_deref().unwrap_or("?"), 16), Style::default().fg(WHITE)),
+                Span::styled(
+                    short_name(proc.command.as_deref().unwrap_or("?"), 16),
+                    Style::default().fg(WHITE),
+                ),
                 Span::raw(" · "),
-                Span::styled(fmt_bytes(proc.used_gpu_memory_bytes), Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    fmt_bytes(proc.used_gpu_memory_bytes),
+                    Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+                ),
             ]));
         }
     }
