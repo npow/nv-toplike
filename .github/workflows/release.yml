@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -78,10 +79,12 @@ jobs:
           name: binary-${{ matrix.target }}
           path: dist/*
 
-  publish-release:
+  publish-github:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -100,3 +103,28 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+
+  publish-crates-io:
+    name: Publish to crates.io
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Authenticate with crates.io (OIDC Trusted Publishing)
+        id: crates-io-auth
+        uses: rust-lang/crates-io-auth-action@v1
+        continue-on-error: true
+
+      - name: Publish crate to crates.io
+        if: steps.crates-io-auth.outcome == 'success'
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
