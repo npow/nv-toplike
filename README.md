@@ -8,27 +8,37 @@ Terminal GPU monitor and performance diagnostics for NVIDIA accelerators.
 
 ## Installation
 
-### 1-Line Installer (Linux x86_64 / aarch64)
+### 1. One-Line Installer (Linux)
+Installs the standalone precompiled binary to `~/.local/bin` (or `/usr/local/bin`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/npow/nv-toplike/main/install.sh | sh
 ```
 
-### Prebuilt Binaries (GitHub Releases)
-Precompiled standalone binaries are available on [GitHub Releases](https://github.com/npow/nv-toplike/releases):
-- **Linux x86_64 (musl / static)**: `nv-toplike-v0.1.0-x86_64-unknown-linux-musl.tar.gz`
-- **Linux x86_64 (glibc)**: `nv-toplike-v0.1.0-x86_64-unknown-linux-gnu.tar.gz`
-- **Linux aarch64 (ARM64)**: `nv-toplike-v0.1.0-aarch64-unknown-linux-gnu.tar.gz`
-
-### Cargo
+### 2. Debian / Ubuntu (`.deb` Package)
+Download and install the native `.deb` package from [GitHub Releases](https://github.com/npow/nv-toplike/releases):
 
 ```bash
-# Direct binary download via cargo-binstall
+# Example for Ubuntu/Debian x86_64
+sudo apt install ./nv-toplike_*_amd64.deb
+```
+
+### 3. Cargo (crates.io)
+If you have the Rust toolchain installed:
+
+```bash
+# Fast prebuilt binary download (no compilation)
 cargo binstall nv-toplike
 
-# Or build from source
+# Or build from crates.io
 cargo install nv-toplike
 ```
+
+### 4. Standalone Binaries (GitHub Releases)
+Statically linked, zero-dependency tarballs are available on [GitHub Releases](https://github.com/npow/nv-toplike/releases):
+- **Linux x86_64 (musl / static)**: `nv-toplike-v0.1.0-x86_64-unknown-linux-musl.tar.gz`
+- **Linux x86_64 (glibc)**: `nv-toplike-v0.1.0-x86_64-unknown-linux-gnu.tar.gz`
+- **Linux aarch64 (ARM64 / Jetson / GH200)**: `nv-toplike-v0.1.0-aarch64-unknown-linux-gnu.tar.gz`
 
 ---
 
