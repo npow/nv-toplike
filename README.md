@@ -1,7 +1,7 @@
 # nv-toplike
 
 [![Crates.io](https://img.shields.io/crates/v/nv-toplike.svg)](https://crates.io/crates/nv-toplike)
-[![CI](https://github.com/npow/nv-toplike/actions/workflows/ci.yml/badge.svg)](https://github.com/npow/nv-toplike/actions/workflows/ci.yml)
+[![CI](https://github.com/npow/nv-toplike/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/npow/nv-toplike/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Downloads](https://img.shields.io/crates/d/nv-toplike.svg)](https://crates.io/crates/nv-toplike)
 [![Rust Version](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](Cargo.toml)
@@ -67,14 +67,14 @@ Statically linked, zero-dependency tarballs are available on [GitHub Releases](h
 ### 1. Overview (`Key: 1`)
 Real-time operational overview with core gauges, clock stepping, power headroom, thermal state, and process list.
 
-![Overview View](https://raw.githubusercontent.com/npow/nv-toplike/main/assets/overview.gif)
+![Overview View](assets/overview.gif)
 
 ---
 
 ### 2. SM Constellation (`Key: 2`)
 2D grid of all physical Streaming Multiprocessors alongside pipeline telemetry and DMA transfer rates.
 
-![SM Constellation View](https://raw.githubusercontent.com/npow/nv-toplike/main/assets/constellation.gif)
+![SM Constellation View](assets/constellation.gif)
 
 - **SM Glyphs**: `·` (Idle), `∘` (Low Load), `○` (Moderate), `◉` (Active), `●` (Full Load), `✦` (Spike), `◈` (Tensor Core).
 - **Colors**: Dynamic HSV scale mapped to core temperature.
@@ -84,21 +84,21 @@ Real-time operational overview with core gauges, clock stepping, power headroom,
 ### 3. Memory Foundry (`Key: 3`)
 Physical memory hierarchy visualization including 2D VRAM allocation block map, L2 cache crossbar partitions, SM register/SRAM vaults, and ECC error counters.
 
-![Memory Foundry View](https://raw.githubusercontent.com/npow/nv-toplike/main/assets/memory.gif)
+![Memory Foundry View](assets/memory.gif)
 
 ---
 
 ### 4. Fabric Map (`Key: 4`)
 PCIe bus tree topology, link generation/width negotiation, directional DMA bandwidth, and multi-GPU interconnect matrix.
 
-![Fabric Map View](https://raw.githubusercontent.com/npow/nv-toplike/main/assets/fabric.gif)
+![Fabric Map View](assets/fabric.gif)
 
 ---
 
 ### 5. Fleet (`Key: 5`)
 Multi-GPU cluster overview showing aggregate compute load, total VRAM allocation, total power draw, and per-device status cards.
 
-![Fleet View](https://raw.githubusercontent.com/npow/nv-toplike/main/assets/fleet.gif)
+![Fleet View](assets/fleet.gif)
 
 ---
 

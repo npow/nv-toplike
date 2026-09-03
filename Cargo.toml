@@ -1,6 +1,6 @@
 [package]
 name = "nv-toplike"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
@@ -11,7 +11,7 @@ documentation = "https://github.com/npow/nv-toplike#readme"
 readme = "README.md"
 keywords = ["nvidia", "gpu", "nvml", "telemetry", "tui"]
 categories = ["command-line-utilities", "hardware-support"]
-exclude = ["assets/*", "scripts/*", ".github/*"]
+exclude = ["scripts/*", ".github/*"]
 
 [dependencies]
 anyhow = "1.0"
