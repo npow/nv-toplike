@@ -17,12 +17,12 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use ratatui::{Frame, Terminal};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Gauge, Paragraph, Tabs};
+use ratatui::{Frame, Terminal};
 use unicode_width::UnicodeWidthStr;
 
 use crate::cli::ViewMode;
@@ -220,10 +220,13 @@ pub fn render(
             root[2],
         ),
         Some(snapshot) => {
-            let selected_device = &snapshot.devices[app.selected.min(snapshot.devices.len().saturating_sub(1))];
+            let selected_device =
+                &snapshot.devices[app.selected.min(snapshot.devices.len().saturating_sub(1))];
             match app.mode {
                 ViewMode::Overview => overview::render_overview(frame, root[2], app, snapshot),
-                ViewMode::Constellation => constellation::render_constellation(frame, root[2], app, selected_device),
+                ViewMode::Constellation => {
+                    constellation::render_constellation(frame, root[2], app, selected_device)
+                }
                 ViewMode::Memory => memory::render_memory(frame, root[2], app, selected_device),
                 ViewMode::Fabric => fabric::render_fabric(frame, root[2], snapshot),
                 ViewMode::Fleet => fleet::render_fleet(frame, root[2], app, snapshot),
@@ -231,8 +234,10 @@ pub fn render(
         }
     }
     frame.render_widget(
-        Paragraph::new(" 1 Overview  2 SMs  3 Memory  4 Fabric  5 Fleet  ←/→ GPU  Tab Cycle  q Quit")
-            .style(Style::default().fg(MUTED)),
+        Paragraph::new(
+            " 1 Overview  2 SMs  3 Memory  4 Fabric  5 Fleet  ←/→ GPU  Tab Cycle  q Quit",
+        )
+        .style(Style::default().fg(MUTED)),
         root[3],
     );
 }
@@ -354,7 +359,8 @@ pub fn animated_link(label: &str, rate: Option<u64>, frame: u64, rightward: bool
     });
     let mut track = vec!['─'; track_width];
     for particle in 0..density {
-        let position = ((frame as usize * (particle + 1) + particle * 7) % track_width).min(track_width - 1);
+        let position =
+            ((frame as usize * (particle + 1) + particle * 7) % track_width).min(track_width - 1);
         if rightward {
             track[position] = '◆';
         } else {
@@ -543,7 +549,13 @@ mod tests {
         let mut app = App::new(ViewMode::Constellation);
         app.observe(&snapshot);
 
-        for mode in [ViewMode::Overview, ViewMode::Constellation, ViewMode::Memory, ViewMode::Fabric, ViewMode::Fleet] {
+        for mode in [
+            ViewMode::Overview,
+            ViewMode::Constellation,
+            ViewMode::Memory,
+            ViewMode::Fabric,
+            ViewMode::Fleet,
+        ] {
             app.mode = mode;
             terminal
                 .draw(|frame| render(frame, &app, Some(&snapshot), None))

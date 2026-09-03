@@ -46,7 +46,14 @@ fn color_to_rgb(color: Color) -> (u8, u8, u8) {
     }
 }
 
-fn fixture_device(index: usize, name: &str, sm_count: u32, vram_gb: u64, util: f64, frame: u64) -> DeviceSnapshot {
+fn fixture_device(
+    index: usize,
+    name: &str,
+    sm_count: u32,
+    vram_gb: u64,
+    util: f64,
+    frame: u64,
+) -> DeviceSnapshot {
     let now = Utc::now();
     let mut sample = AcceleratorSample::default();
     sample.utilization.gpu_ratio = Some(Metric::nvml(util, now, MetricScope::Device));
@@ -68,14 +75,24 @@ fn fixture_device(index: usize, name: &str, sm_count: u32, vram_gb: u64, util: f
     sample.clocks.memory_clock_mhz = Some(Metric::nvml(14000, now, MetricScope::Device));
     sample.clocks.performance_state = Some("P0".to_owned());
 
-    sample.thermals.temperature_celsius = Some(Metric::nvml(54.0 + (frame as f64 * 0.1).sin() * 2.0, now, MetricScope::Device));
+    sample.thermals.temperature_celsius = Some(Metric::nvml(
+        54.0 + (frame as f64 * 0.1).sin() * 2.0,
+        now,
+        MetricScope::Device,
+    ));
     sample.thermals.fan_percent = Some(Metric::nvml(45.0, now, MetricScope::Device));
 
-    sample.power.power_watts = Some(Metric::nvml(142.0 + (frame as f64 * 0.15).cos() * 8.0, now, MetricScope::Device));
+    sample.power.power_watts = Some(Metric::nvml(
+        142.0 + (frame as f64 * 0.15).cos() * 8.0,
+        now,
+        MetricScope::Device,
+    ));
     sample.power.power_limit_watts = Some(Metric::nvml(300.0, now, MetricScope::Device));
 
-    sample.links.pcie_tx_bytes_per_second = Some(Metric::nvml(2_576_980_377, now, MetricScope::Device));
-    sample.links.pcie_rx_bytes_per_second = Some(Metric::nvml(8_698_753_024, now, MetricScope::Device));
+    sample.links.pcie_tx_bytes_per_second =
+        Some(Metric::nvml(2_576_980_377, now, MetricScope::Device));
+    sample.links.pcie_rx_bytes_per_second =
+        Some(Metric::nvml(8_698_753_024, now, MetricScope::Device));
     sample.links.pcie_generation = Some(5);
     sample.links.pcie_width = Some(16);
 
@@ -169,7 +186,14 @@ fn main() -> anyhow::Result<()> {
                 nvml_version: Some("13.610.43".to_owned()),
                 devices: vec![
                     fixture_device(0, "NVIDIA RTX PRO 6000 Blackwell", 188, 96, util, app.frame),
-                    fixture_device(1, "NVIDIA RTX PRO 6000 Blackwell", 188, 96, util * 0.8, app.frame),
+                    fixture_device(
+                        1,
+                        "NVIDIA RTX PRO 6000 Blackwell",
+                        188,
+                        96,
+                        util * 0.8,
+                        app.frame,
+                    ),
                 ],
                 topology: Vec::new(),
                 ..Snapshot::empty(Utc::now())
