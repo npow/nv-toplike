@@ -1,5 +1,11 @@
 # nv-toplike
 
+[![Crates.io](https://img.shields.io/crates/v/nv-toplike.svg)](https://crates.io/crates/nv-toplike)
+[![CI](https://github.com/npow/nv-toplike/actions/workflows/ci.yml/badge.svg)](https://github.com/npow/nv-toplike/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Downloads](https://img.shields.io/crates/d/nv-toplike.svg)](https://crates.io/crates/nv-toplike)
+[![Rust Version](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](Cargo.toml)
+
 Terminal GPU monitor and performance diagnostics for NVIDIA accelerators.
 
 `nv-toplike` reads NVML directly via low-overhead FFI bindings rather than spawning `nvidia-smi` child processes. It provides real-time telemetry across compute, memory, power, thermals, and interconnect topologies.
