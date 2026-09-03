@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod colors;
+pub mod constellation;
+pub mod fabric;
+pub mod fleet;
+pub mod memory;
+pub mod overview;
+
 use std::collections::BTreeMap;
 use std::io;
 use std::time::{Duration, Instant};
@@ -10,38 +17,30 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, BorderType, Borders, Cell, Gauge, Paragraph, Row, Table, Tabs, Wrap,
-};
+use ratatui::widgets::{Block, BorderType, Borders, Gauge, Paragraph, Tabs};
+use ratatui::{Frame, Terminal};
 use unicode_width::UnicodeWidthStr;
 
 use crate::cli::ViewMode;
 use crate::collector::Collector;
-use crate::model::{DeviceSnapshot, ProcessKind, Snapshot, TopologyKind};
-
-const CYAN: Color = Color::Rgb(90, 220, 255);
-const GREEN: Color = Color::Rgb(120, 255, 170);
-const AMBER: Color = Color::Rgb(255, 200, 90);
-const PINK: Color = Color::Rgb(255, 120, 205);
-const MUTED: Color = Color::Rgb(120, 130, 155);
-const RED: Color = Color::Rgb(255, 90, 90);
+use crate::model::{DeviceSnapshot, Snapshot};
+use crate::ui::colors::*;
 
 #[derive(Debug, Clone, Default)]
-struct AdaptiveBaseline {
-    samples: u32,
-    gpu_sum: f64,
-    memory_sum: f64,
-    gpu: f64,
-    memory: f64,
+pub struct AdaptiveBaseline {
+    pub samples: u32,
+    pub gpu_sum: f64,
+    pub memory_sum: f64,
+    pub gpu: f64,
+    pub memory: f64,
 }
 
 impl AdaptiveBaseline {
-    fn update(&mut self, gpu: f64, memory: f64) {
+    pub fn update(&mut self, gpu: f64, memory: f64) {
         if self.samples < 20 {
             self.samples += 1;
             self.gpu_sum += gpu;
@@ -59,23 +58,24 @@ impl AdaptiveBaseline {
         }
     }
 
-    fn activity(&self, gpu: f64, memory: f64) -> f64 {
+    pub fn activity(&self, gpu: f64, memory: f64) -> f64 {
         let gpu_delta = normalize_above(gpu, self.gpu);
         let memory_delta = normalize_above(memory, self.memory);
         (gpu.max(gpu_delta) * 0.72 + memory.max(memory_delta) * 0.28).clamp(0.0, 1.0)
     }
 }
 
-struct App {
-    mode: ViewMode,
-    selected: usize,
-    frame: u64,
-    last_sample_time: Option<chrono::DateTime<Utc>>,
-    baselines: BTreeMap<String, AdaptiveBaseline>,
+pub struct App {
+    pub mode: ViewMode,
+    pub selected: usize,
+    pub frame: u64,
+    pub last_sample_time: Option<chrono::DateTime<Utc>>,
+    pub baselines: BTreeMap<String, AdaptiveBaseline>,
 }
 
 impl App {
-    fn new(mode: ViewMode) -> Self {
+    #[must_use]
+    pub fn new(mode: ViewMode) -> Self {
         Self {
             mode,
             selected: 0,
@@ -85,7 +85,7 @@ impl App {
         }
     }
 
-    fn observe(&mut self, snapshot: &Snapshot) {
+    pub fn observe(&mut self, snapshot: &Snapshot) {
         if self.last_sample_time == Some(snapshot.captured_at) {
             return;
         }
@@ -102,7 +102,8 @@ impl App {
         self.selected = self.selected.min(snapshot.devices.len().saturating_sub(1));
     }
 
-    fn visual_activity(&self, device: &DeviceSnapshot) -> f64 {
+    #[must_use]
+    pub fn visual_activity(&self, device: &DeviceSnapshot) -> f64 {
         let gpu = device.gpu_ratio().unwrap_or(0.0);
         let memory = device.memory_activity_ratio().unwrap_or(0.0);
         self.baselines
@@ -112,7 +113,7 @@ impl App {
             })
     }
 
-    fn next_mode(&mut self) {
+    pub fn next_mode(&mut self) {
         let index = ViewMode::ALL
             .iter()
             .position(|mode| *mode == self.mode)
@@ -187,7 +188,7 @@ fn run_loop(
     Ok(())
 }
 
-fn render(
+pub fn render(
     frame: &mut ratatui::Frame<'_>,
     app: &App,
     snapshot: Option<&Snapshot>,
@@ -218,17 +219,25 @@ fn render(
                 .block(panel(" Telemetry ", RED)),
             root[2],
         ),
-        Some(snapshot) => match app.mode {
-            ViewMode::Overview => render_overview(frame, root[2], app, snapshot),
-            ViewMode::Constellation => render_constellation(frame, root[2], app, snapshot),
-            ViewMode::Memory => render_memory(frame, root[2], app, snapshot),
-            ViewMode::Fabric => render_fabric(frame, root[2], snapshot),
-            ViewMode::Fleet => render_fleet(frame, root[2], app, snapshot),
-        },
+        Some(snapshot) => {
+            let selected_device =
+                &snapshot.devices[app.selected.min(snapshot.devices.len().saturating_sub(1))];
+            match app.mode {
+                ViewMode::Overview => overview::render_overview(frame, root[2], app, snapshot),
+                ViewMode::Constellation => {
+                    constellation::render_constellation(frame, root[2], app, selected_device)
+                }
+                ViewMode::Memory => memory::render_memory(frame, root[2], app, selected_device),
+                ViewMode::Fabric => fabric::render_fabric(frame, root[2], snapshot),
+                ViewMode::Fleet => fleet::render_fleet(frame, root[2], app, snapshot),
+            }
+        }
     }
     frame.render_widget(
-        Paragraph::new(" 1 Overview  2 SMs  3 Memory  4 Fabric  5 Fleet  ←→ GPU  Tab view  q quit")
-            .style(Style::default().fg(MUTED)),
+        Paragraph::new(
+            " 1 Overview  2 SMs  3 Memory  4 Fabric  5 Fleet  ←/→ GPU  Tab Cycle  q Quit",
+        )
+        .style(Style::default().fg(MUTED)),
         root[3],
     );
 }
@@ -305,657 +314,8 @@ fn render_tabs(frame: &mut ratatui::Frame<'_>, area: Rect, selected: ViewMode) {
     frame.render_widget(tabs, area);
 }
 
-fn render_overview(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App, snapshot: &Snapshot) {
-    let device = &snapshot.devices[app.selected];
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(4),
-            Constraint::Length(5),
-            Constraint::Min(5),
-        ])
-        .split(area);
-    render_device_selector(frame, layout[0], snapshot, app.selected);
-
-    let gauges = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(25); 4])
-        .split(layout[1]);
-    render_gauge(
-        frame,
-        gauges[0],
-        " GPU kernel activity ",
-        device.gpu_ratio(),
-        CYAN,
-    );
-    render_gauge(
-        frame,
-        gauges[1],
-        " Memory controller ",
-        device.memory_activity_ratio(),
-        PINK,
-    );
-    render_gauge(
-        frame,
-        gauges[2],
-        " VRAM allocation ",
-        device.memory_fill_ratio(),
-        AMBER,
-    );
-    render_gauge(
-        frame,
-        gauges[3],
-        " Power limit ",
-        device.power_ratio(),
-        GREEN,
-    );
-
-    let lower = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(43), Constraint::Percentage(57)])
-        .split(layout[2]);
-    render_details(frame, lower[0], device);
-    render_processes(frame, lower[1], device);
-}
-
-fn render_device_selector(
-    frame: &mut ratatui::Frame<'_>,
-    area: Rect,
-    snapshot: &Snapshot,
-    selected: usize,
-) {
-    let spans = snapshot
-        .devices
-        .iter()
-        .enumerate()
-        .flat_map(|(index, device)| {
-            let style = if index == selected {
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(CYAN)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            let label = format!(
-                " {}:{} {:.0}% {:.0}°C ",
-                device.device.display_index.unwrap_or(index as u32),
-                short_name(&device.device.name, 18),
-                device.gpu_ratio().unwrap_or(0.0) * 100.0,
-                device.temperature_c().unwrap_or(0.0)
-            );
-            [Span::styled(label, style), Span::raw(" ")]
-        })
-        .collect::<Vec<_>>();
-    frame.render_widget(
-        Paragraph::new(Line::from(spans))
-            .wrap(Wrap { trim: true })
-            .block(panel(" GPUs · stable identity is UUID ", CYAN)),
-        area,
-    );
-}
-
-fn render_details(frame: &mut ratatui::Frame<'_>, area: Rect, device: &DeviceSnapshot) {
-    let sample = &device.sample;
-    let power = sample.power.power_watts.as_ref().map(|m| m.value);
-    let limit = sample.power.power_limit_watts.as_ref().map(|m| m.value);
-    let temperature = device.temperature_c();
-    let fan = sample.thermals.fan_percent.as_ref().map(|m| m.value);
-    let sm_clock = sample.clocks.sm_clock_mhz.as_ref().map(|m| m.value);
-    let memory_clock = sample.clocks.memory_clock_mhz.as_ref().map(|m| m.value);
-    let pcie_tx = sample
-        .links
-        .pcie_tx_bytes_per_second
-        .as_ref()
-        .map(|m| m.value);
-    let pcie_rx = sample
-        .links
-        .pcie_rx_bytes_per_second
-        .as_ref()
-        .map(|m| m.value);
-    let health = sample.health.observations.join(" · ");
-    let lines =
-        vec![
-            Line::from(vec![
-                Span::styled("Model  ", Style::default().fg(MUTED)),
-                Span::raw(&device.device.name),
-            ]),
-            Line::from(format!(
-                "UUID   {}  ·  PCI {}",
-                short_uuid(&device.device.id),
-                device.device.pci_bus_id.as_deref().unwrap_or("N/A")
-            )),
-            Line::from(format!(
-                "Power  {} / {}  ·  Temp {}  ·  Fan {}",
-                fmt_watts(power),
-                fmt_watts(limit),
-                fmt_temp(temperature),
-                fmt_percent(fan.map(|value| value / 100.0))
-            )),
-            Line::from(format!(
-                "Clock  SM {}  ·  MEM {}  ·  {}",
-                fmt_mhz(sm_clock),
-                fmt_mhz(memory_clock),
-                sample.clocks.performance_state.as_deref().unwrap_or("P?")
-            )),
-            Line::from(format!(
-                "PCIe   TX {}  ·  RX {}  ·  Gen{} x{}",
-                fmt_rate(pcie_tx),
-                fmt_rate(pcie_rx),
-                sample
-                    .links
-                    .pcie_generation
-                    .map_or_else(|| "?".to_owned(), |v| v.to_string()),
-                sample
-                    .links
-                    .pcie_width
-                    .map_or_else(|| "?".to_owned(), |v| v.to_string())
-            )),
-            Line::from(vec![
-                Span::styled("Health ", Style::default().fg(MUTED)),
-                Span::styled(
-                    health,
-                    Style::default().fg(
-                        if sample.health.observations.iter().any(|value| {
-                            value.contains("uncorrected") || value.contains("slowdown")
-                        }) {
-                            RED
-                        } else {
-                            GREEN
-                        },
-                    ),
-                ),
-            ]),
-        ];
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: true })
-            .block(panel(" Device ", CYAN)),
-        area,
-    );
-}
-
-fn render_processes(frame: &mut ratatui::Frame<'_>, area: Rect, device: &DeviceSnapshot) {
-    let rows = device.processes.iter().map(|process| {
-        Row::new(vec![
-            Cell::from(process.pid.to_string()),
-            Cell::from(match process.kind {
-                ProcessKind::Compute => "C",
-                ProcessKind::Graphics => "G",
-                ProcessKind::ComputeAndGraphics => "C+G",
-            }),
-            Cell::from(process.command.as_deref().unwrap_or("unknown")),
-            Cell::from(fmt_bytes(process.used_gpu_memory_bytes)),
-            Cell::from(fmt_percent(process.sm_ratio)),
-            Cell::from(fmt_percent(process.memory_ratio)),
-        ])
-    });
-    let title = format!(" Processes · {} ", device.processes.len());
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(8),
-            Constraint::Length(5),
-            Constraint::Min(12),
-            Constraint::Length(10),
-            Constraint::Length(7),
-            Constraint::Length(7),
-        ],
-    )
-    .header(
-        Row::new(["PID", "TYPE", "COMMAND", "VRAM", "SM", "MEM"])
-            .style(Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
-    )
-    .block(panel(&title, PINK))
-    .column_spacing(1);
-    frame.render_widget(table, area);
-}
-
-fn render_constellation(
-    frame: &mut ratatui::Frame<'_>,
-    area: Rect,
-    app: &App,
-    snapshot: &Snapshot,
-) {
-    let device = &snapshot.devices[app.selected];
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(3),
-            Constraint::Length(2),
-        ])
-        .split(area);
-    let reported_sm_count = device.device.compute_units.map(|count| count as usize);
-    // NVML's physical-device attributes call is not supported by every driver
-    // and SKU (including some current Blackwell workstation cards). Keep the
-    // view useful with an explicitly illustrative field instead of deriving an
-    // SM count from marketing CUDA-core totals.
-    let display_units = reported_sm_count.unwrap_or(64).max(1);
-    let activity = app.visual_activity(device);
-    let tensor = device
-        .sample
-        .utilization
-        .tensor_active_ratio
-        .as_ref()
-        .map(|m| m.value);
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                format!(" {} ", short_name(&device.device.name, 34)),
-                Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(format!(
-                "{} · aggregate GPU activity {} · Tensor {}",
-                reported_sm_count.map_or_else(
-                    || "SM count unavailable".to_owned(),
-                    |count| format!("{count} SMs")
-                ),
-                fmt_percent(device.gpu_ratio()),
-                fmt_percent(tensor)
-            )),
-        ]))
-        .block(panel(" SM Constellation ", CYAN)),
-        layout[0],
-    );
-
-    let inner_width = layout[1].width.saturating_sub(2) as usize;
-    let inner_height = layout[1].height.saturating_sub(2) as usize;
-    let columns = (inner_width / 2).max(1);
-    let visible = display_units.min(columns.saturating_mul(inner_height));
-    let temperature = device.temperature_c().unwrap_or(35.0);
-    let color = heat_color(temperature);
-    let glyphs = ["·", "∘", "○", "◉", "●"];
-    let mut lines = Vec::new();
-    for row in 0..visible.div_ceil(columns) {
-        let mut spans = Vec::new();
-        for column in 0..columns {
-            let index = row * columns + column;
-            if index >= visible {
-                break;
-            }
-            // Positional phase is decorative; every cell is still driven by
-            // the same aggregate activity value.
-            let phase = ((app.frame + (index as u64 * 7)) % 17) as f64 / 17.0;
-            let level = ((activity * 4.2 + phase * 0.45).floor() as usize).min(4);
-            spans.push(Span::styled(
-                format!("{} ", glyphs[level]),
-                Style::default().fg(color),
-            ));
-        }
-        lines.push(Line::from(spans));
-    }
-    frame.render_widget(
-        Paragraph::new(lines)
-            .alignment(Alignment::Center)
-            .block(panel(" Aggregate SM field ", heat_color(temperature))),
-        layout[1],
-    );
-    frame.render_widget(
-        Paragraph::new(format!(
-            "Illustrative layout: all cells share device-level NVML activity. {}",
-            reported_sm_count.map_or_else(
-                || format!("{visible} display cells; NVML did not expose the physical SM count."),
-                |count| format!("Showing {visible}/{count} reported SMs.")
-            )
-        ))
-        .style(Style::default().fg(MUTED))
-        .alignment(Alignment::Center),
-        layout[2],
-    );
-}
-
-fn render_memory(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App, snapshot: &Snapshot) {
-    let device = &snapshot.devices[app.selected];
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(5),
-            Constraint::Length(5),
-            Constraint::Min(5),
-            Constraint::Length(2),
-        ])
-        .split(area);
-
-    frame.render_widget(
-        Paragraph::new(format!(
-            "{} · VRAM {} / {} · memory-controller activity {}",
-            device.device.name,
-            fmt_bytes(
-                device
-                    .sample
-                    .memory
-                    .used_bytes
-                    .as_ref()
-                    .map(|metric| metric.value)
-            ),
-            fmt_bytes(
-                device
-                    .sample
-                    .memory
-                    .total_bytes
-                    .as_ref()
-                    .map(|metric| metric.value)
-            ),
-            fmt_percent(device.memory_activity_ratio())
-        ))
-        .block(panel(" Memory Foundry ", PINK)),
-        layout[0],
-    );
-
-    let transport = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(24),
-            Constraint::Percentage(52),
-            Constraint::Percentage(24),
-        ])
-        .split(layout[1]);
-    frame.render_widget(
-        Paragraph::new("HOST\nMEMORY")
-            .alignment(Alignment::Center)
-            .block(panel(" source/sink ", MUTED)),
-        transport[0],
-    );
-    let tx = device
-        .sample
-        .links
-        .pcie_tx_bytes_per_second
-        .as_ref()
-        .map(|metric| metric.value);
-    let rx = device
-        .sample
-        .links
-        .pcie_rx_bytes_per_second
-        .as_ref()
-        .map(|metric| metric.value);
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(animated_link("GPU TX", tx, app.frame, true)),
-            Line::from(animated_link(
-                "GPU RX",
-                rx,
-                app.frame.wrapping_add(5),
-                false,
-            )),
-        ])
-        .alignment(Alignment::Center)
-        .block(panel(" measured PCIe throughput ", CYAN)),
-        transport[1],
-    );
-    frame.render_widget(
-        Paragraph::new("GPU\nVRAM")
-            .alignment(Alignment::Center)
-            .block(panel(" destination/source ", AMBER)),
-        transport[2],
-    );
-
-    render_gauge(
-        frame,
-        layout[2],
-        " VRAM allocation · persistent reservoir, not traffic ",
-        device.memory_fill_ratio(),
-        AMBER,
-    );
-    let activity = device.memory_activity_ratio();
-    let inner = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(33),
-            Constraint::Percentage(34),
-            Constraint::Percentage(33),
-        ])
-        .split(layout[3]);
-    render_foundry_stage(frame, inner[0], "VRAM / HBM", activity, app.frame, PINK);
-    render_foundry_stage(
-        frame,
-        inner[1],
-        "L2 context",
-        activity,
-        app.frame.wrapping_add(4),
-        AMBER,
-    );
-    render_foundry_stage(
-        frame,
-        inner[2],
-        "SM local context",
-        Some(app.visual_activity(device)),
-        app.frame.wrapping_add(8),
-        CYAN,
-    );
-    frame.render_widget(
-        Paragraph::new(
-            "Internal L2/SM motion is architectural context; NVML measures aggregate global-memory activity, not cache hops.",
-        )
-        .style(Style::default().fg(MUTED))
-        .alignment(Alignment::Center),
-        layout[4],
-    );
-}
-
-fn render_foundry_stage(
-    frame: &mut ratatui::Frame<'_>,
-    area: Rect,
-    label: &str,
-    ratio: Option<f64>,
-    phase: u64,
-    color: Color,
-) {
-    let ratio = ratio.unwrap_or(0.0).clamp(0.0, 1.0);
-    let width = area.width.saturating_sub(4) as usize;
-    let lit = ((width as f64) * ratio).round() as usize;
-    let mut line = String::with_capacity(width);
-    for index in 0..width {
-        let ch = if index < lit {
-            if (index as u64 + phase).is_multiple_of(5) {
-                '◆'
-            } else {
-                '▓'
-            }
-        } else {
-            '░'
-        };
-        line.push(ch);
-    }
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(line),
-            Line::from(format!("{} activity", fmt_percent(Some(ratio)))),
-        ])
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(color))
-        .block(panel(&format!(" {label} "), color)),
-        area,
-    );
-}
-
-fn render_fabric(frame: &mut ratatui::Frame<'_>, area: Rect, snapshot: &Snapshot) {
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(4), Constraint::Length(4)])
-        .split(area);
-    let name_by_id = snapshot
-        .devices
-        .iter()
-        .map(|device| {
-            (
-                device.device.id.as_str(),
-                format!(
-                    "GPU{} {}",
-                    device.device.display_index.unwrap_or(0),
-                    short_name(&device.device.name, 28)
-                ),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut lines = snapshot
-        .devices
-        .iter()
-        .map(|device| {
-            Line::from(vec![
-                Span::styled(
-                    "● ",
-                    Style::default().fg(heat_color(device.temperature_c().unwrap_or(35.0))),
-                ),
-                Span::styled(
-                    name_by_id
-                        .get(device.device.id.as_str())
-                        .cloned()
-                        .unwrap_or_else(|| short_uuid(&device.device.id)),
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(format!(
-                    "  {}  PCIe Gen{} x{}  TX {}  RX {}",
-                    device.device.pci_bus_id.as_deref().unwrap_or("PCI N/A"),
-                    device
-                        .sample
-                        .links
-                        .pcie_generation
-                        .map_or_else(|| "?".to_owned(), |v| v.to_string()),
-                    device
-                        .sample
-                        .links
-                        .pcie_width
-                        .map_or_else(|| "?".to_owned(), |v| v.to_string()),
-                    fmt_rate(
-                        device
-                            .sample
-                            .links
-                            .pcie_tx_bytes_per_second
-                            .as_ref()
-                            .map(|m| m.value)
-                    ),
-                    fmt_rate(
-                        device
-                            .sample
-                            .links
-                            .pcie_rx_bytes_per_second
-                            .as_ref()
-                            .map(|m| m.value)
-                    ),
-                )),
-            ])
-        })
-        .collect::<Vec<_>>();
-    if snapshot.topology.is_empty() {
-        lines.push(Line::from(Span::styled(
-            "\nSingle visible GPU; no inter-GPU topology edge to draw.",
-            Style::default().fg(MUTED),
-        )));
-    } else {
-        lines.push(Line::from(""));
-        for edge in &snapshot.topology {
-            lines.push(Line::from(vec![
-                Span::styled("  └─ ", Style::default().fg(MUTED)),
-                Span::raw(
-                    name_by_id
-                        .get(edge.from.as_str())
-                        .cloned()
-                        .unwrap_or_else(|| short_uuid(&edge.from)),
-                ),
-                Span::styled(
-                    format!(" ──{:?}── ", edge.kind),
-                    Style::default().fg(topology_color(&edge.kind)),
-                ),
-                Span::raw(
-                    name_by_id
-                        .get(edge.to.as_str())
-                        .cloned()
-                        .unwrap_or_else(|| short_uuid(&edge.to)),
-                ),
-            ]));
-        }
-    }
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .block(panel(
-                " Fabric Map · relationships are direct NVML topology ",
-                CYAN,
-            )),
-        layout[0],
-    );
-    frame.render_widget(
-        Paragraph::new(
-            "PCIe rates are per-device NVML measurements. A static topology edge does not imply measured peer traffic; NVLink enrichment is pending DCGM support.",
-        )
-        .style(Style::default().fg(MUTED))
-        .wrap(Wrap { trim: true })
-        .block(panel(" Semantics ", MUTED)),
-        layout[1],
-    );
-}
-
-fn render_fleet(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App, snapshot: &Snapshot) {
-    let rows = snapshot.devices.iter().enumerate().map(|(index, device)| {
-        let health_fault = device.sample.health.observations.iter().any(|value| {
-            value.contains("uncorrected") || value.contains("slowdown") || value.contains("brake")
-        });
-        Row::new(vec![
-            Cell::from(if index == app.selected { "▶" } else { " " }),
-            Cell::from(
-                device
-                    .device
-                    .display_index
-                    .map_or_else(|| "-".to_owned(), |v| v.to_string()),
-            ),
-            Cell::from(short_name(&device.device.name, 32)),
-            Cell::from(device.device.architecture.as_deref().unwrap_or("N/A")),
-            Cell::from(fmt_percent(device.gpu_ratio())),
-            Cell::from(fmt_percent(device.memory_activity_ratio())),
-            Cell::from(format!(
-                "{} / {}",
-                fmt_bytes(device.sample.memory.used_bytes.as_ref().map(|m| m.value)),
-                fmt_bytes(device.sample.memory.total_bytes.as_ref().map(|m| m.value))
-            )),
-            Cell::from(fmt_watts(
-                device.sample.power.power_watts.as_ref().map(|m| m.value),
-            )),
-            Cell::from(fmt_temp(device.temperature_c())),
-            Cell::from(if health_fault { "WARN" } else { "OBS OK" }),
-        ])
-        .style(if health_fault {
-            Style::default().fg(RED)
-        } else if index == app.selected {
-            Style::default().fg(CYAN)
-        } else {
-            Style::default()
-        })
-    });
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(2),
-            Constraint::Length(4),
-            Constraint::Min(18),
-            Constraint::Length(11),
-            Constraint::Length(7),
-            Constraint::Length(7),
-            Constraint::Length(21),
-            Constraint::Length(9),
-            Constraint::Length(7),
-            Constraint::Length(8),
-        ],
-    )
-    .header(
-        Row::new([
-            "", "GPU", "MODEL", "ARCH", "GPU", "MEM", "VRAM", "POWER", "TEMP", "HEALTH",
-        ])
-        .style(Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
-    )
-    .column_spacing(1)
-    .block(panel(
-        " Fleet · UUID-stable ordering from NVML enumeration ",
-        CYAN,
-    ));
-    frame.render_widget(table, area);
-}
-
-fn render_gauge(
-    frame: &mut ratatui::Frame<'_>,
+pub fn render_gauge(
+    frame: &mut Frame<'_>,
     area: Rect,
     title: &str,
     ratio: Option<f64>,
@@ -973,7 +333,7 @@ fn render_gauge(
     frame.render_widget(gauge, area);
 }
 
-fn panel(title: &str, color: Color) -> Block<'_> {
+pub fn panel(title: &str, color: Color) -> Block<'_> {
     Block::default()
         .title(title)
         .borders(Borders::ALL)
@@ -981,7 +341,7 @@ fn panel(title: &str, color: Color) -> Block<'_> {
         .border_style(Style::default().fg(color))
 }
 
-fn normalize_above(value: f64, baseline: f64) -> f64 {
+pub fn normalize_above(value: f64, baseline: f64) -> f64 {
     if baseline >= 1.0 {
         0.0
     } else {
@@ -989,30 +349,7 @@ fn normalize_above(value: f64, baseline: f64) -> f64 {
     }
 }
 
-fn heat_color(temperature: f64) -> Color {
-    if temperature >= 85.0 {
-        RED
-    } else if temperature >= 70.0 {
-        Color::Rgb(255, 120, 80)
-    } else if temperature >= 55.0 {
-        AMBER
-    } else if temperature >= 40.0 {
-        GREEN
-    } else {
-        CYAN
-    }
-}
-
-fn topology_color(kind: &TopologyKind) -> Color {
-    match kind {
-        TopologyKind::MigParent | TopologyKind::PciInternal => GREEN,
-        TopologyKind::PciSingleSwitch => CYAN,
-        TopologyKind::PciMultiSwitch | TopologyKind::PciHostBridge => AMBER,
-        TopologyKind::NumaNode | TopologyKind::System | TopologyKind::Unknown => MUTED,
-    }
-}
-
-fn animated_link(label: &str, rate: Option<u64>, frame: u64, rightward: bool) -> String {
+pub fn animated_link(label: &str, rate: Option<u64>, frame: u64, rightward: bool) -> String {
     let width = 20;
     let density = rate.map_or(0, |value| match value {
         0 => 0,
@@ -1031,13 +368,13 @@ fn animated_link(label: &str, rate: Option<u64>, frame: u64, rightward: bool) ->
     }
     let arrow = if rightward { '▶' } else { '◀' };
     format!(
-        "{label:6} {}{arrow}  {}",
+        "{label:12} {}{arrow}  {}",
         track.into_iter().collect::<String>(),
         fmt_rate(rate)
     )
 }
 
-fn short_uuid(uuid: &str) -> String {
+pub fn short_uuid(uuid: &str) -> String {
     if uuid.width() <= 18 {
         return uuid.to_owned();
     }
@@ -1047,7 +384,7 @@ fn short_uuid(uuid: &str) -> String {
     format!("{prefix}…{suffix}")
 }
 
-fn short_name(name: &str, width: usize) -> String {
+pub fn short_name(name: &str, width: usize) -> String {
     if name.width() <= width {
         return name.to_owned();
     }
@@ -1065,37 +402,37 @@ fn short_name(name: &str, width: usize) -> String {
     out
 }
 
-fn fmt_percent(value: Option<f64>) -> String {
+pub fn fmt_percent(value: Option<f64>) -> String {
     value.map_or_else(
         || "N/A".to_owned(),
         |value| format!("{:.0}%", value * 100.0),
     )
 }
 
-fn fmt_temp(value: Option<f64>) -> String {
+pub fn fmt_temp(value: Option<f64>) -> String {
     value.map_or_else(|| "N/A".to_owned(), |value| format!("{value:.0}°C"))
 }
 
-fn fmt_watts(value: Option<f64>) -> String {
+pub fn fmt_watts(value: Option<f64>) -> String {
     value.map_or_else(|| "N/A".to_owned(), |value| format!("{value:.1}W"))
 }
 
-fn fmt_mhz(value: Option<u32>) -> String {
+pub fn fmt_mhz(value: Option<u32>) -> String {
     value.map_or_else(|| "N/A".to_owned(), |value| format!("{value}MHz"))
 }
 
-fn fmt_rate(value: Option<u64>) -> String {
+pub fn fmt_rate(value: Option<u64>) -> String {
     value.map_or_else(
         || "N/A".to_owned(),
         |value| format!("{}/s", human_bytes(value)),
     )
 }
 
-fn fmt_bytes(value: Option<u64>) -> String {
+pub fn fmt_bytes(value: Option<u64>) -> String {
     value.map_or_else(|| "N/A".to_owned(), human_bytes)
 }
 
-fn human_bytes(bytes: u64) -> String {
+pub fn human_bytes(bytes: u64) -> String {
     const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
     let mut value = bytes as f64;
     let mut unit = 0;
@@ -1155,7 +492,7 @@ mod tests {
 
     #[test]
     fn every_view_renders_at_practical_terminal_sizes() {
-        for (width, height) in [(80, 24), (120, 40)] {
+        for (width, height) in [(80, 24), (120, 40), (160, 50)] {
             let backend = TestBackend::new(width, height);
             let mut terminal = Terminal::new(backend).expect("test terminal");
             let snapshot = fixture_snapshot();
@@ -1168,6 +505,31 @@ mod tests {
                     .expect("view renders");
             }
         }
+    }
+
+    #[test]
+    fn constellation_renders_multi_row_with_large_sm_count() {
+        let backend = TestBackend::new(120, 30);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut snapshot = fixture_snapshot();
+        snapshot.devices[0].device.compute_units = Some(188); // Blackwell RTX PRO 6000
+        let mut app = App::new(ViewMode::Constellation);
+        app.observe(&snapshot);
+        terminal
+            .draw(|frame| render(frame, &app, Some(&snapshot), None))
+            .expect("constellation renders");
+    }
+
+    #[test]
+    fn fabric_renders_single_and_multi_gpu() {
+        let backend = TestBackend::new(120, 30);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let snapshot = fixture_snapshot();
+        let mut app = App::new(ViewMode::Fabric);
+        app.observe(&snapshot);
+        terminal
+            .draw(|frame| render(frame, &app, Some(&snapshot), None))
+            .expect("fabric single gpu renders");
     }
 
     fn fixture_snapshot() -> Snapshot {

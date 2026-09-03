@@ -13,9 +13,7 @@ use nv_toplike::collector::Collector;
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     if cli.backend == BackendChoice::Dcgm {
-        bail!(
-            "DCGM enrichment is not implemented in the NVML MVP; use --backend nvml (the read-only default)"
-        );
+        bail!("DCGM backend is not supported in this build; use --backend nvml");
     }
 
     let backend_config = NvmlConfig {

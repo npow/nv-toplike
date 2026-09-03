@@ -160,8 +160,7 @@ pub struct HealthSample {
     pub retired_pages_corrected: Option<Metric<u64>>,
     pub retired_pages_uncorrected: Option<Metric<u64>>,
     pub pcie_replay_counter: Option<Metric<u64>>,
-    /// Empty means no observed fault among accessible counters, not proof of
-    /// comprehensive hardware health.
+    /// Health observations reported by accessible device counters.
     pub observations: Vec<String>,
 }
 

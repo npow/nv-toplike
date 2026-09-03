@@ -61,6 +61,7 @@ impl NvmlBackend {
             .device_count()
             .map_err(|error| BackendError::Discovery(error.to_string()))?;
 
+        let cuda_table = crate::backend::cuda::CudaDeviceTable::query();
         let mut entities = Vec::new();
         for physical_index in 0..device_count {
             let physical = nvml
@@ -81,6 +82,7 @@ impl NvmlBackend {
                         EntityKind::PhysicalGpu,
                         None,
                         mig_enabled,
+                        &cuda_table,
                     ),
                 });
             }
@@ -102,6 +104,7 @@ impl NvmlBackend {
                             EntityKind::MigDevice,
                             Some(physical_uuid.clone()),
                             Some(true),
+                            &cuda_table,
                         ),
                     });
                 }
@@ -331,23 +334,34 @@ fn discover_device(
     entity_kind: EntityKind,
     parent_id: Option<String>,
     mig_enabled: Option<bool>,
+    cuda_table: &crate::backend::cuda::CudaDeviceTable,
 ) -> AcceleratorDevice {
     let memory_total_bytes = device.memory_info().ok().map(|memory| memory.total);
+    let id = device
+        .uuid()
+        .unwrap_or_else(|_| format!("unavailable-{physical_index}"));
+    let pci_bus_id = device.pci_info().ok().map(|pci| pci.bus_id);
+
+    // NVML provides multiprocessor_count via attributes() for MIG/vGPU devices,
+    // but returns NotSupported on physical devices under bare-metal drivers.
+    // When NVML attributes() is unsupported, fallback to querying the CUDA driver.
+    let compute_units = device
+        .attributes()
+        .ok()
+        .map(|attributes| attributes.multiprocessor_count)
+        .filter(|&count| count > 0)
+        .or_else(|| cuda_table.get_sm_count(&id, pci_bus_id.as_deref(), Some(physical_index)));
+
     AcceleratorDevice {
-        id: device
-            .uuid()
-            .unwrap_or_else(|_| format!("unavailable-{physical_index}")),
+        id,
         parent_id,
         display_index: Some(physical_index),
-        pci_bus_id: device.pci_info().ok().map(|pci| pci.bus_id),
+        pci_bus_id,
         vendor: "NVIDIA".to_owned(),
         name: device.name().unwrap_or_else(|_| "NVIDIA GPU".to_owned()),
         architecture: device.architecture().ok().map(|value| format!("{value:?}")),
         entity_kind,
-        compute_units: device
-            .attributes()
-            .ok()
-            .map(|attributes| attributes.multiprocessor_count),
+        compute_units,
         memory_total_bytes,
         mig_enabled,
         capabilities: BTreeSet::new(),

@@ -930,6 +930,7 @@ dependencies = [
  "chrono",
  "clap",
  "crossterm",
+ "libloading",
  "nvml-wrapper",
  "ratatui",
  "serde",
