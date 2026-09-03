@@ -6,6 +6,28 @@
 
 ---
 
+## Quick Install (Prebuilt Binaries)
+
+### 1-Line Installer (Linux x86_64 / aarch64)
+No Rust toolchain or build environment required:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/npow/nv-toplike/main/install.sh | sh
+```
+
+### GitHub Releases (Standalone Binaries)
+Download precompiled, statically linked binaries from [GitHub Releases](https://github.com/npow/nv-toplike/releases):
+- **Linux x86_64 (musl / static)**: `nv-toplike-v0.1.0-x86_64-unknown-linux-musl.tar.gz`
+- **Linux x86_64 (glibc)**: `nv-toplike-v0.1.0-x86_64-unknown-linux-gnu.tar.gz`
+- **Linux aarch64 (ARM64 / Grace-Hopper / Jetson)**: `nv-toplike-v0.1.0-aarch64-unknown-linux-gnu.tar.gz`
+
+### Cargo Binstall (Fast Binary Install)
+```bash
+cargo binstall nv-toplike
+```
+
+---
+
 ## Key Features
 
 - **Direct NVML Integration**: Read-only, unprivileged, low-overhead hardware telemetry without child process overhead.
@@ -78,13 +100,11 @@
 
 ---
 
-## Installation & Build
+## Building from Source
 
 ### Prerequisites
 - NVIDIA GPU with driver installed (NVIDIA Display Driver 450.00+ or later).
 - Rust 1.88+ and Cargo toolchain.
-
-### Building from Source
 
 ```bash
 git clone https://github.com/npow/nv-toplike.git

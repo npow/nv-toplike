@@ -8,14 +8,12 @@ use ratatui::widgets::{Cell, Paragraph, Row, Table, Wrap};
 
 use crate::model::{DeviceSnapshot, ProcessKind, Snapshot};
 use crate::ui::colors::*;
-use crate::ui::{App, fmt_bytes, fmt_mhz, fmt_percent, fmt_rate, fmt_temp, fmt_watts, panel, render_gauge, short_name, short_uuid};
+use crate::ui::{
+    App, fmt_bytes, fmt_mhz, fmt_percent, fmt_rate, fmt_temp, fmt_watts, panel, render_gauge,
+    short_name, short_uuid,
+};
 
-pub fn render_overview(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    app: &App,
-    snapshot: &Snapshot,
-) {
+pub fn render_overview(frame: &mut Frame<'_>, area: Rect, app: &App, snapshot: &Snapshot) {
     let device = &snapshot.devices[app.selected];
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -96,12 +94,7 @@ pub fn render_overview(
     render_diagnostics_card(frame, lower_chunks[1], device);
 }
 
-fn render_device_selector(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    snapshot: &Snapshot,
-    selected: usize,
-) {
+fn render_device_selector(frame: &mut Frame<'_>, area: Rect, snapshot: &Snapshot, selected: usize) {
     let spans = snapshot
         .devices
         .iter()
@@ -110,7 +103,13 @@ fn render_device_selector(
             let is_sel = index == selected;
             let temp = device.temperature_c().unwrap_or(0.0);
             let gpu = device.gpu_ratio().unwrap_or(0.0) * 100.0;
-            let pwr = device.sample.power.power_watts.as_ref().map(|m| m.value).unwrap_or(0.0);
+            let pwr = device
+                .sample
+                .power
+                .power_watts
+                .as_ref()
+                .map(|m| m.value)
+                .unwrap_or(0.0);
 
             let label = format!(
                 " GPU {}: {} · {:.0}% · {:.0}°C · {:.0}W ",
@@ -144,20 +143,40 @@ fn render_device_selector(
 
 fn render_hardware_card(frame: &mut Frame<'_>, area: Rect, device: &DeviceSnapshot) {
     let sample = &device.sample;
-    let sm_count = device.device.compute_units.map_or_else(|| "N/A".to_owned(), |c| format!("{c} SMs"));
-    let pcie_tx = sample.links.pcie_tx_bytes_per_second.as_ref().map(|m| m.value);
-    let pcie_rx = sample.links.pcie_rx_bytes_per_second.as_ref().map(|m| m.value);
+    let sm_count = device
+        .device
+        .compute_units
+        .map_or_else(|| "N/A".to_owned(), |c| format!("{c} SMs"));
+    let pcie_tx = sample
+        .links
+        .pcie_tx_bytes_per_second
+        .as_ref()
+        .map(|m| m.value);
+    let pcie_rx = sample
+        .links
+        .pcie_rx_bytes_per_second
+        .as_ref()
+        .map(|m| m.value);
 
     let lines = vec![
         Line::from(vec![
             Span::styled("Model ", Style::default().fg(MUTED)),
-            Span::styled(&device.device.name, Style::default().fg(WHITE).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &device.device.name,
+                Style::default().fg(WHITE).add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Arch  ", Style::default().fg(MUTED)),
-            Span::styled(device.device.architecture.as_deref().unwrap_or("NVIDIA"), Style::default().fg(GOLD)),
+            Span::styled(
+                device.device.architecture.as_deref().unwrap_or("NVIDIA"),
+                Style::default().fg(GOLD),
+            ),
             Span::raw(" · Compute: "),
-            Span::styled(sm_count, Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                sm_count,
+                Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("UUID  ", Style::default().fg(MUTED)),
@@ -165,18 +184,39 @@ fn render_hardware_card(frame: &mut Frame<'_>, area: Rect, device: &DeviceSnapsh
         ]),
         Line::from(vec![
             Span::styled("Bus   ", Style::default().fg(MUTED)),
-            Span::styled(device.device.pci_bus_id.as_deref().unwrap_or("N/A"), Style::default().fg(WHITE)),
+            Span::styled(
+                device.device.pci_bus_id.as_deref().unwrap_or("N/A"),
+                Style::default().fg(WHITE),
+            ),
             Span::raw(" · PCIe Gen"),
-            Span::styled(sample.links.pcie_generation.map_or_else(|| "?".to_owned(), |v| v.to_string()), Style::default().fg(GREEN)),
+            Span::styled(
+                sample
+                    .links
+                    .pcie_generation
+                    .map_or_else(|| "?".to_owned(), |v| v.to_string()),
+                Style::default().fg(GREEN),
+            ),
             Span::raw(" x"),
-            Span::styled(sample.links.pcie_width.map_or_else(|| "?".to_owned(), |v| v.to_string()), Style::default().fg(GREEN)),
+            Span::styled(
+                sample
+                    .links
+                    .pcie_width
+                    .map_or_else(|| "?".to_owned(), |v| v.to_string()),
+                Style::default().fg(GREEN),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Link  ", Style::default().fg(MUTED)),
             Span::styled("TX: ", Style::default().fg(MUTED)),
-            Span::styled(format!("{:>10}", fmt_rate(pcie_tx)), Style::default().fg(CYAN)),
+            Span::styled(
+                format!("{:>10}", fmt_rate(pcie_tx)),
+                Style::default().fg(CYAN),
+            ),
             Span::styled(" · RX: ", Style::default().fg(MUTED)),
-            Span::styled(format!("{:>10}", fmt_rate(pcie_rx)), Style::default().fg(PINK)),
+            Span::styled(
+                format!("{:>10}", fmt_rate(pcie_rx)),
+                Style::default().fg(PINK),
+            ),
         ]),
     ];
 
@@ -196,14 +236,21 @@ fn render_clocks_card(frame: &mut Frame<'_>, area: Rect, device: &DeviceSnapshot
     let power = sample.power.power_watts.as_ref().map(|m| m.value);
     let limit = sample.power.power_limit_watts.as_ref().map(|m| m.value);
     let temp = device.temperature_c();
-    let slowdown = sample.thermals.slowdown_threshold_celsius.as_ref().map(|m| m.value);
+    let slowdown = sample
+        .thermals
+        .slowdown_threshold_celsius
+        .as_ref()
+        .map(|m| m.value);
     let fan = sample.thermals.fan_percent.as_ref().map(|m| m.value);
 
     let lines = vec![
         Line::from(vec![
             Span::styled("Clocks  ", Style::default().fg(MUTED)),
             Span::styled("SM ", Style::default().fg(MUTED)),
-            Span::styled(fmt_mhz(sm_clock), Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                fmt_mhz(sm_clock),
+                Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" · MEM ", Style::default().fg(MUTED)),
             Span::styled(fmt_mhz(mem_clock), Style::default().fg(PINK)),
             Span::styled(" · VID ", Style::default().fg(MUTED)),
@@ -211,24 +258,41 @@ fn render_clocks_card(frame: &mut Frame<'_>, area: Rect, device: &DeviceSnapshot
         ]),
         Line::from(vec![
             Span::styled("P-State ", Style::default().fg(MUTED)),
-            Span::styled(sample.clocks.performance_state.as_deref().unwrap_or("P?"), Style::default().fg(GOLD).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                sample.clocks.performance_state.as_deref().unwrap_or("P?"),
+                Style::default().fg(GOLD).add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" · Power: "),
-            Span::styled(fmt_watts(power), Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                fmt_watts(power),
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" / "),
             Span::styled(fmt_watts(limit), Style::default().fg(MUTED)),
         ]),
         Line::from(vec![
             Span::styled("Temp    ", Style::default().fg(MUTED)),
-            Span::styled(fmt_temp(temp), Style::default().fg(heat_color(temp.unwrap_or(35.0))).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                fmt_temp(temp),
+                Style::default()
+                    .fg(heat_color(temp.unwrap_or(35.0)))
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" (Slowdown: "),
             Span::styled(fmt_temp(slowdown), Style::default().fg(MUTED)),
             Span::raw(") · Fan: "),
-            Span::styled(fmt_percent(fan.map(|f| f / 100.0)), Style::default().fg(CYAN)),
+            Span::styled(
+                fmt_percent(fan.map(|f| f / 100.0)),
+                Style::default().fg(CYAN),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Energy  ", Style::default().fg(MUTED)),
             Span::styled(
-                sample.power.energy_millijoules.as_ref().map_or_else(|| "N/A".to_owned(), |m| format!("{:.2} MJ", m.value as f64 / 1_000_000.0)),
+                sample.power.energy_millijoules.as_ref().map_or_else(
+                    || "N/A".to_owned(),
+                    |m| format!("{:.2} MJ", m.value as f64 / 1_000_000.0),
+                ),
                 Style::default().fg(GREEN),
             ),
         ]),
@@ -251,7 +315,12 @@ fn render_memory_engines_card(frame: &mut Frame<'_>, area: Rect, device: &Device
 
     let enc = sample.utilization.encoder_ratio.as_ref().map(|m| m.value);
     let dec = sample.utilization.decoder_ratio.as_ref().map(|m| m.value);
-    let replay = sample.health.pcie_replay_counter.as_ref().map(|m| m.value).unwrap_or(0);
+    let replay = sample
+        .health
+        .pcie_replay_counter
+        .as_ref()
+        .map(|m| m.value)
+        .unwrap_or(0);
 
     // Visual mini bar for memory
     let fill_ratio = device.memory_fill_ratio().unwrap_or(0.0);
@@ -269,7 +338,10 @@ fn render_memory_engines_card(frame: &mut Frame<'_>, area: Rect, device: &Device
     let lines = vec![
         Line::from(vec![
             Span::styled("VRAM  ", Style::default().fg(MUTED)),
-            Span::styled(fmt_bytes(used), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                fmt_bytes(used),
+                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" / "),
             Span::styled(fmt_bytes(total), Style::default().fg(WHITE)),
             Span::raw(" (Free: "),
@@ -279,7 +351,10 @@ fn render_memory_engines_card(frame: &mut Frame<'_>, area: Rect, device: &Device
         Line::from(vec![
             Span::styled("Pool  ", Style::default().fg(MUTED)),
             Span::styled(bar, Style::default().fg(AMBER)),
-            Span::styled(format!(" {:.1}%", fill_ratio * 100.0), Style::default().fg(AMBER)),
+            Span::styled(
+                format!(" {:.1}%", fill_ratio * 100.0),
+                Style::default().fg(AMBER),
+            ),
             Span::raw(" · Res: "),
             Span::styled(fmt_bytes(reserved), Style::default().fg(MUTED)),
         ]),
@@ -292,7 +367,10 @@ fn render_memory_engines_card(frame: &mut Frame<'_>, area: Rect, device: &Device
         ]),
         Line::from(vec![
             Span::styled("Bus   ", Style::default().fg(MUTED)),
-            Span::styled(format!("PCIe Replays: {replay}"), Style::default().fg(if replay > 0 { RED } else { GREEN })),
+            Span::styled(
+                format!("PCIe Replays: {replay}"),
+                Style::default().fg(if replay > 0 { RED } else { GREEN }),
+            ),
         ]),
     ];
 
