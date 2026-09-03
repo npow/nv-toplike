@@ -17,12 +17,12 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
+use ratatui::{Frame, Terminal};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Gauge, Paragraph, Tabs};
-use ratatui::{Frame, Terminal};
 use unicode_width::UnicodeWidthStr;
 
 use crate::cli::ViewMode;
@@ -220,13 +220,10 @@ pub fn render(
             root[2],
         ),
         Some(snapshot) => {
-            let selected_device =
-                &snapshot.devices[app.selected.min(snapshot.devices.len().saturating_sub(1))];
+            let selected_device = &snapshot.devices[app.selected.min(snapshot.devices.len().saturating_sub(1))];
             match app.mode {
                 ViewMode::Overview => overview::render_overview(frame, root[2], app, snapshot),
-                ViewMode::Constellation => {
-                    constellation::render_constellation(frame, root[2], app, selected_device)
-                }
+                ViewMode::Constellation => constellation::render_constellation(frame, root[2], app, selected_device),
                 ViewMode::Memory => memory::render_memory(frame, root[2], app, selected_device),
                 ViewMode::Fabric => fabric::render_fabric(frame, root[2], snapshot),
                 ViewMode::Fleet => fleet::render_fleet(frame, root[2], app, snapshot),
@@ -234,10 +231,8 @@ pub fn render(
         }
     }
     frame.render_widget(
-        Paragraph::new(
-            " 1 Overview  2 SMs  3 Memory  4 Fabric  5 Fleet  ←/→ GPU  Tab Cycle  q Quit",
-        )
-        .style(Style::default().fg(MUTED)),
+        Paragraph::new(" 1 Overview  2 SMs  3 Memory  4 Fabric  5 Fleet  ←/→ GPU  Tab Cycle  q Quit")
+            .style(Style::default().fg(MUTED)),
         root[3],
     );
 }
@@ -350,28 +345,30 @@ pub fn normalize_above(value: f64, baseline: f64) -> f64 {
 }
 
 pub fn animated_link(label: &str, rate: Option<u64>, frame: u64, rightward: bool) -> String {
-    let width = 20;
+    let track_width = 13;
     let density = rate.map_or(0, |value| match value {
         0 => 0,
         1..=1_048_576 => 1,
         1_048_577..=104_857_600 => 2,
         _ => 3,
     });
-    let mut track = vec!['─'; width];
+    let mut track = vec!['─'; track_width];
     for particle in 0..density {
-        let position = ((frame as usize * (particle + 1) + particle * 7) % width).min(width - 1);
-        track[if rightward {
-            position
+        let position = ((frame as usize * (particle + 1) + particle * 7) % track_width).min(track_width - 1);
+        if rightward {
+            track[position] = '◆';
         } else {
-            width - 1 - position
-        }] = '◆';
+            track[track_width - 1 - position] = '◆';
+        }
     }
-    let arrow = if rightward { '▶' } else { '◀' };
-    format!(
-        "{label:12} {}{arrow}  {}",
-        track.into_iter().collect::<String>(),
-        fmt_rate(rate)
-    )
+    let track_str: String = track.into_iter().collect();
+    let track_with_arrow = if rightward {
+        format!("{track_str}▶")
+    } else {
+        format!("◀{track_str}")
+    };
+    let rate_str = format!("{:>10}", fmt_rate(rate));
+    format!("{label:<12}  {track_with_arrow}  {rate_str}")
 }
 
 pub fn short_uuid(uuid: &str) -> String {
@@ -485,9 +482,14 @@ mod tests {
     #[test]
     fn animated_link_is_directional_and_fixed_width() {
         let right = animated_link("TX", Some(10_000_000), 4, true);
-        let left = animated_link("RX", Some(10_000_000), 4, false);
+        let left = animated_link("RX", Some(445_440), 4, false);
+        let right_zero = animated_link("TX", Some(0), 4, true);
+        let left_none = animated_link("RX", None, 4, false);
         assert!(right.contains('▶'));
         assert!(left.contains('◀'));
+        assert_eq!(right.chars().count(), left.chars().count());
+        assert_eq!(right.chars().count(), right_zero.chars().count());
+        assert_eq!(right.chars().count(), left_none.chars().count());
     }
 
     #[test]
@@ -530,6 +532,32 @@ mod tests {
         terminal
             .draw(|frame| render(frame, &app, Some(&snapshot), None))
             .expect("fabric single gpu renders");
+    }
+
+    #[test]
+    fn print_rendered_views_for_inspection() {
+        let backend = TestBackend::new(120, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut snapshot = fixture_snapshot();
+        snapshot.devices[0].device.compute_units = Some(188);
+        let mut app = App::new(ViewMode::Constellation);
+        app.observe(&snapshot);
+
+        for mode in [ViewMode::Overview, ViewMode::Constellation, ViewMode::Memory, ViewMode::Fabric, ViewMode::Fleet] {
+            app.mode = mode;
+            terminal
+                .draw(|frame| render(frame, &app, Some(&snapshot), None))
+                .expect("render");
+            println!("\n=== VIEW: {:?} ===", mode);
+            let buffer = terminal.backend().buffer();
+            for y in 0..buffer.area.height {
+                let mut line = String::new();
+                for x in 0..buffer.area.width {
+                    line.push_str(buffer[(x, y)].symbol());
+                }
+                println!("{}", line);
+            }
+        }
     }
 
     fn fixture_snapshot() -> Snapshot {

@@ -25,33 +25,23 @@ pub fn render_fabric(frame: &mut Frame<'_>, area: Rect, snapshot: &Snapshot) {
     let header_line = Line::from(vec![
         Span::styled(
             " Fabric Map ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(CYAN)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Black).bg(CYAN).add_modifier(Modifier::BOLD),
         ),
         Span::raw("  Direct NVML Hardware Interconnect & Bus Topology · "),
         Span::styled(
-            format!(
-                "{} GPU Device{}",
-                snapshot.devices.len(),
-                if snapshot.devices.len() == 1 { "" } else { "s" }
-            ),
+            format!("{} GPU Device{}", snapshot.devices.len(), if snapshot.devices.len() == 1 { "" } else { "s" }),
             Style::default().fg(GOLD).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" · Inter-GPU Links: "),
         Span::styled(
             format!("{}", snapshot.topology.len()),
-            Style::default().fg(if snapshot.topology.is_empty() {
-                MUTED
-            } else {
-                GREEN
-            }),
+            Style::default().fg(if snapshot.topology.is_empty() { MUTED } else { GREEN }),
         ),
     ]);
 
     frame.render_widget(
-        Paragraph::new(header_line).block(panel(" Interconnect Fabric ", CYAN)),
+        Paragraph::new(header_line)
+            .block(panel(" Interconnect Fabric ", CYAN)),
         main_layout[0],
     );
 
@@ -154,9 +144,9 @@ fn render_fabric_diagram(frame: &mut Frame<'_>, area: Rect, snapshot: &Snapshot)
             ]));
             lines.push(Line::from(vec![
                 Span::styled("│   │   Traffic: TX ", Style::default().fg(MUTED)),
-                Span::styled(tx, Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("{tx:>10}"), Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
                 Span::styled(" · RX ", Style::default().fg(MUTED)),
-                Span::styled(rx, Style::default().fg(PINK).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("{rx:>10}"), Style::default().fg(PINK).add_modifier(Modifier::BOLD)),
             ]));
             lines.push(Line::from(vec![Span::styled(
                 "│   │",
@@ -201,7 +191,7 @@ fn render_fabric_diagram(frame: &mut Frame<'_>, area: Rect, snapshot: &Snapshot)
                     Style::default().fg(WHITE).add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(format!(
-                    "  {}  PCIe Gen{} x{}  TX {}  RX {}",
+                    "  {}  PCIe Gen{} x{}  TX {:>10}  RX {:>10}",
                     device.device.pci_bus_id.as_deref().unwrap_or("PCI N/A"),
                     device
                         .sample
@@ -322,12 +312,12 @@ fn render_fabric_link_deck(frame: &mut Frame<'_>, area: Rect, snapshot: &Snapsho
         lines.push(Line::from(vec![
             Span::styled("  Traffic: ", Style::default().fg(MUTED)),
             Span::styled(
-                format!("TX {}", fmt_rate(pcie_tx)),
+                format!("TX {:>10}", fmt_rate(pcie_tx)),
                 Style::default().fg(CYAN),
             ),
             Span::raw(" · "),
             Span::styled(
-                format!("RX {}", fmt_rate(pcie_rx)),
+                format!("RX {:>10}", fmt_rate(pcie_rx)),
                 Style::default().fg(PINK),
             ),
         ]));
